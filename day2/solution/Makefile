@@ -1,11 +1,13 @@
 
-ARMA=${HOME}/stimulate
+ARMA=/usr
+HDF5_HOME=/usr
+HDF5_INC=/usr/include/hdf5/openmpi
 
-MPICXX = mpiicpc
+MPICXX = mpic++
 CXXFLAGS = -std=c++17
 CPPFLAGS = -I$(ARMA)/include -I${HDF5_INC}
-LDFLAGS = -L${HDF5_HOME}/lib -L$(ARMA)/lib64 -Wl,-rpath=$(ARMA)/lib64
-LIBS = -lhdf5 -larmadillo
+LDFLAGS = -L${HDF5_HOME}/lib -Wl,-rpath=$(ARMA)/lib
+LIBS = -lhdf5_openmpi -larmadillo
 
 model : model.cpp
 	$(MPICXX) $(CXXFLAGS) -o $@ $(CPPFLAGS) $(LDFLAGS) $< $(LIBS)

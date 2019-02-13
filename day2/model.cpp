@@ -26,9 +26,9 @@
 int main(int argc, char *argv[])
 {
   // Global problem size (program arguments)
-  const std::size_t tnx = 2000;
-  const std::size_t tny = 1000;
-  const std::size_t ntimes = 10;
+  const hsize_t tnx = 2000;
+  const hsize_t tny = 1000;
+  const hsize_t ntimes = 10;
 
   // Exercise target : gather things here
   const int iorank = 0;
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
   // (max 1 row each)
   auto xstart = rank*nx;
   if ( nx * nproc != tnx ) {
-     int xmiss = tnx - nx * nproc;
+     hsize_t xmiss = tnx - nx * nproc;
      if ( rank < xmiss ) {
        xstart = xstart + rank;
        nx = nx + 1;
@@ -61,11 +61,11 @@ int main(int argc, char *argv[])
   }
 
   // Let all processors have clear view of model topology
-  std::vector<int> gsx(nproc);
-  std::vector<int> gnx(nproc);
+  std::vector<hsize_t> gsx(nproc);
+  std::vector<hsize_t> gnx(nproc);
   {
-    (void) MPI_Allgather(&xstart,1,MPI_INT,gsx.data( ),1,MPI_INT,global_comm);
-    (void) MPI_Allgather(&nx,1,MPI_INT,gnx.data( ),1,MPI_INT,global_comm);
+    (void) MPI_Allgather(&xstart,1,MPI_LONG,gsx.data( ),1,MPI_LONG,global_comm);
+    (void) MPI_Allgather(&nx,1,MPI_LONG,gnx.data( ),1,MPI_LONG,global_comm);
   }
 
   // Allocate the initial local matrix
@@ -90,9 +90,9 @@ int main(int argc, char *argv[])
   if ( rank == iorank ) {
     // Create the file
     file = H5Fcreate(FILE_NAME, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    hsize_t dims[3] = {1,tnx,tny};
+    hsize_t dims[3] = {1L,tnx,tny};
     hsize_t maxdims[3] = {H5S_UNLIMITED,tnx,tny};
-    hsize_t chunk_dims[3] = {1,tnx,tny};
+    hsize_t chunk_dims[3] = {1L,tnx,tny};
     // Set chunking properties
     prop = H5Pcreate(H5P_DATASET_CREATE);
     status = H5Pset_chunk(prop, 3, chunk_dims);
@@ -108,57 +108,56 @@ int main(int argc, char *argv[])
   for ( hsize_t timestep = 0; timestep < ntimes; timestep ++ ) {
 
     // Fake use of CPU time
-    for ( int iloop = 0; iloop < 100; iloop ++ ) {
-      for ( int i = 0; i < nx; i ++ ) {
-        for ( int j = 0; j < ny; j ++ ) {
+    for ( hsize_t iloop = 0; iloop < 100; iloop ++ ) {
+      for ( hsize_t i = 0; i < nx; i ++ ) {
+        for ( hsize_t j = 0; j < ny; j ++ ) {
           lpm(j,i) = (md_type) rank + timestep;
         }
       }
     }
 
-    if( rank == iorank ){ 
+    if ( rank == iorank ) { 
       
       // Write new solution as timestep in the HDF5 file
       for ( int ir = 0; ir < nproc; ir ++ ) {
-	
-	// pointer to the data to write
-	md_type * tmp_ptr;
-	
-	if( ir == iorank ){
+
+        // pointer to the data to write
+        md_type * tmp_ptr;
+
+        if ( ir == iorank ) {
           // write own memory
         } else {
-	  // Implement the receive side from other procs
+          // Implement the receive side from other procs
         }
         
-	// Get filespace
-	filespace = H5Dget_space(dataset);
-	  
-	// Define the HDF5 the hyperslab offset and count accordingly 
-	//	  hsize_t offset[3] = ???
-	//	  hsize_t count[3] = ???
-	// Select destination hyperslab
-	status = H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL,
-				     count, NULL);
-	// Create dataspace
-	dataspace = H5Screate_simple(3, count, NULL);
-	// Write data
-	status = H5Dwrite(dataset, md_h5_type, dataspace, filespace,
-			  H5P_DEFAULT, tmp_ptr);
-	status = H5Sclose(filespace);
-	status = H5Sclose(dataspace);   
+        // Get filespace
+        filespace = H5Dget_space(dataset);
+          
+        // Define the HDF5 the hyperslab offset and count accordingly 
+        //          hsize_t offset[3] = ???
+        //          hsize_t count[3] = ???
+        // Select destination hyperslab
+        //status = H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL,
+        //                             count, NULL);
+        // Create dataspace
+        // dataspace = H5Screate_simple(3, count, NULL);
+        // Write data
+        status = H5Dwrite(dataset, md_h5_type, dataspace, filespace,
+                          H5P_DEFAULT, tmp_ptr);
+        status = H5Sclose(filespace);
+        status = H5Sclose(dataspace);   
 
-	std::cout << "Timestep " << timestep << std::endl;
-	if ( timestep < ntimes - 1 ) {
-	  hsize_t newdims[3] = { timestep+2,tnx,tny };
-	  // Extend dataset
-	  status = H5Dset_extent(dataset, newdims);
-	}
-
-    }
-    else { 
+      }
+      std::cout << "Timestep " << timestep << std::endl;
+      if ( timestep < ntimes - 1 ) {
+        hsize_t newdims[3] = { timestep+2,tnx,tny };
+        // Extend dataset
+        status = H5Dset_extent(dataset, newdims);
+      }
+    } else { 
       // Implement the sender code
     }
-    
+
   } // time loop
 
   // The Armadillo library has a dump helper in HDF5 format ;)

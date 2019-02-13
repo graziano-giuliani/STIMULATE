@@ -40,8 +40,8 @@ int main(int argc, char *argv[])
   double tot_time_io = 0.0, t_start;
 
   // Global problem size (program arguments)
-  const std::size_t tnx = 4096;
-  const std::size_t tny = 4096;
+  const std::size_t tnx = 512;
+  const std::size_t tny = 256;
   const std::size_t ntimes = 10;
 
   // Exercise target : gather things here
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
   // (max 1 row each)
   auto xstart = rank*nx;
   if ( nx * nproc != tnx ) {
-     int xmiss = tnx - nx * nproc;
+     hsize_t xmiss = tnx - nx * nproc;
      if ( rank < xmiss ) {
        xstart = xstart + rank;
        nx = nx + 1;
@@ -82,11 +82,11 @@ int main(int argc, char *argv[])
   }
 
   // Let all processors have clear view of model topology
-  std::vector<int> gsx(nproc);
-  std::vector<int> gnx(nproc);
+  std::vector<hsize_t> gsx(nproc);
+  std::vector<hsize_t> gnx(nproc);
   {
-    (void) MPI_Allgather(&xstart,1,MPI_INT,gsx.data( ),1,MPI_INT,global_comm);
-    (void) MPI_Allgather(&nx,1,MPI_INT,gnx.data( ),1,MPI_INT,global_comm);
+    (void) MPI_Allgather(&xstart,1,MPI_LONG,gsx.data( ),1,MPI_LONG,global_comm);
+    (void) MPI_Allgather(&nx,1,MPI_LONG,gnx.data( ),1,MPI_LONG,global_comm);
   }
 
   // Fill total problem memory using armadillo column ordering of Matrix.
@@ -170,9 +170,9 @@ int main(int argc, char *argv[])
   for ( hsize_t timestep = 0; timestep < ntimes; timestep ++ ) {
 
     // Fake use of CPU time
-    for ( int iloop = 0; iloop < 1000; iloop ++ ) {
-      for ( int i = 0; i < nx; i ++ ) {
-        for ( int j = 0; j < ny; j ++ ) {
+    for ( int iloop = 0; iloop < 100; iloop ++ ) {
+      for ( hsize_t i = 0; i < nx; i ++ ) {
+        for ( hsize_t j = 0; j < ny; j ++ ) {
           lpm(j,i) = (md_type) rank+timestep;
         }
       }

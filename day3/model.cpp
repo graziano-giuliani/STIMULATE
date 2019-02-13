@@ -41,9 +41,9 @@ int main(int argc, char *argv[])
   double tot_time_io = 0.0, t_start;
 
   // Global problem size (program arguments)
-  const std::size_t tnx = 4096;
-  const std::size_t tny = 4096;
-  const std::size_t ntimes = 10;
+  const hsize_t tnx = 512;
+  const hsize_t tny = 256;
+  const hsize_t ntimes = 10;
 
   // Exercise target : gather things here
   const int iorank = 0;
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
   // (max 1 row each)
   auto xstart = rank*nx;
   if ( nx * nproc != tnx ) {
-     int xmiss = tnx - nx * nproc;
+     hsize_t xmiss = tnx - nx * nproc;
      if ( rank < xmiss ) {
        xstart = xstart + rank;
        nx = nx + 1;
@@ -76,11 +76,11 @@ int main(int argc, char *argv[])
   }
 
   // Let all processors have clear view of model topology
-  std::vector<int> gsx(nproc);
-  std::vector<int> gnx(nproc);
+  std::vector<hsize_t> gsx(nproc);
+  std::vector<hsize_t> gnx(nproc);
   {
-    (void) MPI_Allgather(&xstart,1,MPI_INT,gsx.data( ),1,MPI_INT,global_comm);
-    (void) MPI_Allgather(&nx,1,MPI_INT,gnx.data( ),1,MPI_INT,global_comm);
+    (void) MPI_Allgather(&xstart,1,MPI_LONG,gsx.data( ),1,MPI_LONG,global_comm);
+    (void) MPI_Allgather(&nx,1,MPI_LONG,gnx.data( ),1,MPI_LONG,global_comm);
   }
 
   // Allocate the initial local matrix
@@ -98,7 +98,9 @@ int main(int argc, char *argv[])
 
   // Create the file
   hid_t plist_id = H5Pcreate (H5P_FILE_ACCESS);
-  hid_t  hdf5_status = H5Pset_fapl_mpio (plist_id, MPI_COMM_WORLD, MPI_INFO_NULL);
+  hid_t hdf5_status = H5Pset_fapl_mpio(plist_id,
+                                       MPI_COMM_WORLD,
+                                       MPI_INFO_NULL);
   file = H5Fcreate(FILE_NAME, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
   hsize_t dims[3] = {1,tnx,tny};
   hsize_t maxdims[3] = {H5S_UNLIMITED,tnx,tny}; 
@@ -113,17 +115,16 @@ int main(int argc, char *argv[])
 		       H5P_DEFAULT, prop, H5P_DEFAULT);
   H5Pclose(prop);
   status = H5Pclose( plist_id );
-  hid_t xfer_plist = H5Pcreate (H5P_DATASET_XFER);
-  herr_t ret = H5Pset_dxpl_mpio (xfer_plist, H5FD_MPIO_COLLECTIVE);
-
+  hid_t xfer_plist = H5Pcreate(H5P_DATASET_XFER);
+  herr_t ret = H5Pset_dxpl_mpio(xfer_plist, H5FD_MPIO_COLLECTIVE);
 
   // simulate a model running and compute the new solution
   for ( hsize_t timestep = 0; timestep < ntimes; timestep ++ ) {
 
     // Fake use of CPU time
-    for ( int iloop = 0; iloop < 100; iloop ++ ) {
-      for ( int i = 0; i < nx; i ++ ) {
-        for ( int j = 0; j < ny; j ++ ) {
+    for ( hsize_t iloop = 0; iloop < 100; iloop ++ ) {
+      for ( hsize_t i = 0; i < nx; i ++ ) {
+        for ( hsize_t j = 0; j < ny; j ++ ) {
           lpm(j,i) = (md_type) rank + timestep;
         }
       }
@@ -133,8 +134,8 @@ int main(int argc, char *argv[])
 	
     // Get filespade
     filespace = H5Dget_space(dataset);
-    hsize_t offset[3] = { timestep,gsx[ rank ],0 };
-    hsize_t count[3] = { 1,gnx[ rank ],tny };
+    hsize_t offset[3] = { timestep,gsx[rank],0 };
+    hsize_t count[3] = { 1,gnx[rank],tny };
     // Select destination hyperslab
     status = H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL,
 				 count, NULL);
@@ -170,10 +171,6 @@ int main(int argc, char *argv[])
               << "\t\tI/O bandwidth = " << m_bytes / tot_time_io
               << " MBytes/sec" << std::endl << std::endl;
   }
-  // The Armadillo library has a dump helper in HDF5 format ;)
-  //if ( rank == iorank ) {
-  //  tpm.save(arma::hdf5_name("tpm.h5", "tpm"));
-  //}
 
   // Resource cleanup
   // Note that processor 0 is unbalanced and has a lot more resources.
